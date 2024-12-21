@@ -9,49 +9,55 @@ const router = express.Router();
  * GET /api/restaurants/nearby
  * Query Params: lat, lng, radius, page, limit
  */
+const milesToRange = (lat, lng, radiusInMiles) => {
+  const latitudeChange = radiusInMiles / 69; // Approx. miles to degrees for latitude
+  const longitudeChange = radiusInMiles / (69 * Math.cos((lat * Math.PI) / 180)); // Adjust for longitude based on latitude
+
+  return {
+    minLat: lat - latitudeChange,
+    maxLat: lat + latitudeChange,
+    minLng: lng - longitudeChange,
+    maxLng: lng + longitudeChange,
+  };
+};
+
+// Example usage
 router.get('/restaurants/nearby', async (req, res) => {
-  const { lat, lng, radius = 5000, page = 1, limit = 10 } = req.query;
+  const { lat, lng, radius = 500, page = 1, limit = 10 } = req.query;
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'Latitude (lat) and longitude (lng) are required.' });
   }
 
-  try {
-    const parsedRadius = parseInt(radius);
-    const parsedLimit = parseInt(limit);
-    const skip = (page - 1) * parsedLimit;
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+  const radiusInMiles = parseFloat(radius);
+  const parsedPage = parseInt(page);
+  const parsedLimit = parseInt(limit);
 
+  // Calculate the range
+  const { minLat, maxLat, minLng, maxLng } = milesToRange(latitude, longitude, radiusInMiles);
+
+  try {
+    // Query for restaurants within the range with pagination
     const restaurants = await Restaurant.find({
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          $maxDistance: parsedRadius
-        }
-      }
+      'location.lat': { $gte: minLat, $lte: maxLat }, // Latitude range
+      'location.lng': { $gte: minLng, $lte: maxLng }, // Longitude range
     })
-      .skip(skip)
+      .skip((parsedPage - 1) * parsedLimit)
       .limit(parsedLimit);
 
     const total = await Restaurant.countDocuments({
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          $maxDistance: parsedRadius
-        }
-      }
+      'location.lat': { $gte: minLat, $lte: maxLat }, // Latitude range
+      'location.lng': { $gte: minLng, $lte: maxLng }, // Longitude range
     });
 
     res.json({
-      message: `Restaurants within ${radius} meters.`,
-      page: parseInt(page),
+      message: `Restaurants within ${radiusInMiles} miles.`,
+      page: parsedPage,
       limit: parsedLimit,
       total,
+      totalPages: Math.ceil(total / parsedLimit),
       results: restaurants,
     });
   } catch (error) {
@@ -59,6 +65,8 @@ router.get('/restaurants/nearby', async (req, res) => {
     res.status(500).json({ error: 'Server error while fetching nearby restaurants.' });
   }
 });
+
+
 
 /**
  * 2. Get Restaurant by ID
