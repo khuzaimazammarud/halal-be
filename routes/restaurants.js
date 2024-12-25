@@ -34,7 +34,7 @@ router.get('/restaurants/nearby', async (req, res) => {
   const radiusInMiles = parseFloat(radius);
   const parsedPage = parseInt(page);
   const parsedLimit = parseInt(limit);
-
+  
   // Calculate the range
   const { minLat, maxLat, minLng, maxLng } = milesToRange(latitude, longitude, radiusInMiles);
 
@@ -44,8 +44,8 @@ router.get('/restaurants/nearby', async (req, res) => {
       'location.lat': { $gte: minLat, $lte: maxLat }, // Latitude range
       'location.lng': { $gte: minLng, $lte: maxLng }, // Longitude range
     })
-      .skip((parsedPage - 1) * parsedLimit)
-      .limit(parsedLimit);
+    .skip((parsedPage - 1) * parsedLimit)
+    .limit(parsedLimit);
 
     const total = await Restaurant.countDocuments({
       'location.lat': { $gte: minLat, $lte: maxLat }, // Latitude range
@@ -66,6 +66,30 @@ router.get('/restaurants/nearby', async (req, res) => {
   }
 });
 
+router.get('/restaurants/locations', async (req, res) => {
+  try {
+    // Fetch required fields from the database
+    const restaurants = await Restaurant.find();
+    console.log("🚀 ~ file: restaurants.js:134 ~ restaurants:", restaurants)
+
+    // Transform the results into a cleaner format if needed
+    const results = restaurants.map((restaurant) => ({
+      name: restaurant.name,
+      latitude: restaurant.location?.lat,
+      longitude: restaurant.location?.lng,
+      googleMapsUrl: restaurant.google_maps_url,
+    }));
+
+    res.json({
+      message: 'List of all restaurants with names, coordinates, and Google Maps URLs.',
+      total: results.length,
+      results,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: 'Server error while fetching restaurant locations.' });
+  }
+});
 
 
 /**
@@ -74,13 +98,12 @@ router.get('/restaurants/nearby', async (req, res) => {
  */
 router.get('/restaurants/:id', async (req, res) => {
   const { id } = req.params;
-
   try {
     const restaurant = await Restaurant.findById(id);
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found.' });
     }
-
+    
     res.json({ message: 'Restaurant details', restaurant });
   } catch (error) {
     console.error(error.message);
@@ -126,5 +149,6 @@ router.get('/restaurants/search', async (req, res) => {
     res.status(500).json({ error: 'Server error while searching for restaurants.' });
   }
 });
+
 
 module.exports = router;
