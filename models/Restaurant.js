@@ -15,6 +15,7 @@ const RestaurantSchema = new mongoose.Schema({
   total_reviews: { type: Number }, // Matches 'user_ratings_total'
   reviews: { type: [Object] }, // Full reviews
   types: { type: [String] }, // Matches 'types'
+  photos_s3: [String],
 });
 
 module.exports = mongoose.model("Restaurant", RestaurantSchema);
